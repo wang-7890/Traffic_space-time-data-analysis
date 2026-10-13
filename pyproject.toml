@@ -1,0 +1,15 @@
+[project]
+name = "traffic-space-time-data-analysis"
+version = "0.1.0"
+description = "基于 pandas、matplotlib、numpy 的交通时空数据分析项目"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas",
+    "numpy",
+    "matplotlib",
+]
+
+# 本项目是数据分析脚本集合，不是可安装的 Python 包：
+# 不定义 build-system，uv 只做依赖管理，不会尝试把项目本身打包安装
+[tool.uv]
+package = false
