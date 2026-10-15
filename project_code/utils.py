@@ -8,11 +8,11 @@
 后续课时还会往这里加算法工具（haversine 距离等）。
 """
 from pathlib import Path
-
+import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from project_code.config import FIGURES_DIR, RAW_DIR, RESULT_DIR
+from project_code.config import FIGURES_DIR, PROCESSED_DIR, RAW_DIR, RESULT_DIR
 
 
 def _read_csv_any_encoding(path: Path, **kwargs) -> pd.DataFrame:
@@ -79,3 +79,32 @@ def save_fig(fig, name: str) -> Path:
     fig.savefig(path, bbox_inches='tight')
     print(f'图片已保存: {path}')
     return path
+
+
+def save_processed(df: pd.DataFrame, name: str) -> Path:
+    """把中间结果写到 data/processed/ 目录，自动建目录（各阶段接力用）。
+
+    参数:
+        name: 文件名，建议用 config.PROCESSED_FILES 里的常量
+    """
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    path = PROCESSED_DIR / name
+    df.to_csv(path, index=False, encoding='utf-8-sig')
+    print(f'中间结果已保存: {path}')
+    return path
+
+
+def parse_time(s):
+    """把清洗后的 YYYYMMDDHHMMSS 时间字符串转回 datetime（讲义课时25 的 parse_time）。"""
+    return pd.to_datetime(s, format='%Y%m%d%H%M%S')
+
+
+def Harversine(lon1,lat1,lon2,lat2,unit="km"):
+    R=6371.0
+    lon1,lat1,lon2,lat2 =map(np.radians,[lon1,lat1,lon2,lat2])
+    dlat = lat2-lat1
+    dlon = lon2-lon1
+    a = (np.sin(dlat/2.0))**2 + np.cos(lat1)*np.cos(lat2)*(np.sin(dlon/2.0))**2
+    c = 2.0*np.arcsin(np.sqrt(a))
+    dist = R * c
+    return dist *1000.0 if unit == 'm' else dist

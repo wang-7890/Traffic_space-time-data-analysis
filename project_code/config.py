@@ -36,3 +36,18 @@ RESULT_FILES = {
     'mode': 'mode_result.csv',          # 模块4 出行方式
     'heatmap': 'heatmap_result.csv',    # 模块5 实时商圈热力
 }
+
+# 中间数据文件名（data/processed/ 下，模块2 各阶段接力用）
+PROCESSED_FILES = {
+    'trajectory': 'trajectory_points.csv',  # 模块2 阶段1 轨迹点表
+}
+
+# ---------- 数据清洗参数（对应 Day4 课时 23~30 讲义） ----------
+TARGET_DATE = '20181003'             # 规则5：只保留目标日
+MIN_POINTS_PER_USER = 20             # 规则9：当天点数不足的用户删除
+SAMPLE_ROWS = 20000                  # 教学抽样：整用户抽样目标行数；0 = 全量（手写 k-means 慢，慎用）
+RAW_TIMEZONE_OFFSET_HOURS = 8        # 规则4：毫秒 UTC 时间戳转北京时间的时差
+
+# ---------- 阶段1 速度参数（对应 Day5 讲义：速度粗筛出行点） ----------
+SPEED_THRESHOLD = 8                  # 低于该速度视为静止（km/h）
+ABNORMAL_SPEED = 200                 # 高于该速度视为基站跳跃假高速，置空（不删行）

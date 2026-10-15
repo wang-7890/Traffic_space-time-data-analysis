@@ -220,3 +220,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 data/
+
+# 分析结果（可由代码重新生成，通过网盘/群文件传递，不上传 GitHub）
+result/*.csv
