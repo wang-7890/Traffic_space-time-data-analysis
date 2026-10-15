@@ -66,12 +66,74 @@ def quick_info(df: pd.DataFrame) -> None:
     print('各列类型:')
     print(df.dtypes)
 
+#-----------清洗参数------------
+SIGNAL_COLS = ['timestamp','imsi','lac_id','cell_id','phone','timestamp1','tmp0','tmp1','nid','npid']
+STATION_COLS = ['longitude','latitude','laci']
+TARGET_DATE = '20181003'
+MIN_RECORDS = 20
+
 
 # ---------- 清洗主流程 ----------
 
 def main():
     """清洗主流程（骨架，9 条规则待实现）。"""
-    print('[模块1] 数据清洗：待实现（9 条规则）')
+    print('[模块1] 数据清洗：开始')
+
+    #规则1 字段抽取： 无表头，按字符串读入并手动命名（防止丢前导零）
+    df = load_csv(RAW_FILES['signal'],header=None,dtype=str,names=SIGNAL_COLS)
+    print(f"规则1 字段抽取后: {len(df)}行")
+    df = drop_duplicates(df)   #去完全重复行
+
+    #规则2 去脏imsi：只保留15~20位纯数字
+    imsi = df['imsi'].astype(str).str.strip()
+    df = df[imsi.str.match(r'^\d{15,20}$')].copy()
+    print(f"规则2 去脏 imsi后: {len(df)}行")
+
+    #规则3 去空间残缺： imsi/lac_id/cell_id 为空或占位符'000'的行删除
+    for col in ['imsi','lac_id','cell_id']:
+        df[col] = df[col].astype(str).str.strip()
+    df = df[(df['imsi'] != '') & (df['lac_id'] != '') & (df['cell_id'] != '')]  #剔除空字符串
+    df = df[~df[['imsi','lac_id','cell_id']].isin(['000','nan','None']).any(axis=1)]
+    print(f"规则3 去残缺后：{len(df)} 行")
+
+    #规则4 毫秒时间戳转换 ：13位毫秒时间戳
+    df['timestamp'] = pd.to_datetime(
+        pd.to_numeric(df['timestamp'], errors='coerce'),
+        errors='coerce',
+        unit='ms'
+    ).dt.strftime('%Y%m%d%H%M%S')
+    print(f"规则4 毫秒时间戳转换后：{len(df)} 行")
+
+    #规则5 目标日期过滤：只保留2018-10-03
+    df = df[df["timestamp"].str.startswith(TARGET_DATE)]
+    print(f"规则5 日期过滤后：{len(df)} 行")
+
+    #规则6 基站表左关联补全经纬度：拼接laci = lac_id-cell_id
+    df['laci'] = df['lac_id'].str.strip() + '-' + df['cell_id'].str.strip()   #拼接laci
+    stations = load_csv(RAW_FILES['station'],header=None,dtype=str,names=STATION_COLS)   #读入基站表
+    stations = stations[['laci','longitude','latitude']].drop_duplicates(subset = 'laci')  #按laci去重
+    df = df.merge(stations,on='laci',how='left')   #左连接，补经纬度
+    df = to_numeric(df,'longitude',errors='coerce')
+    df = to_numeric(df,'latitude',errors='coerce')    #经纬度从字符串转成数字
+    print(f"规则6 关联后：{len(df)}行，未匹配经纬度 {df['longitude'].isna().sum()} 行")
+
+    #规则7 排序：先按用户，再按时间
+    df = df.sort_values(['imsi','timestamp']).reset_index(drop=True)
+
+    #规则8 分钟去重：同一imsi 同一分钟只能留一条。抑制基站乒乓切换
+    df['_minute'] = df['timestamp'].str[:12]
+    df = df.drop_duplicates(subset=['imsi', '_minute'], keep='first')
+    df = df.drop(columns='_minute').reset_index(drop=True)
+    print(f'规则8 分钟去重后：{len(df)} 行')
+
+    #规则9 低频用户过滤：单imsi记录数 < 20条的用户删除
+    counts = df['imsi'].value_counts()
+    df = df[df['imsi'].isin(counts[counts >= MIN_RECORDS].index)]
+    print(f'规则9 低频用户过滤后：{len(df)} 行')
+
+    save_result(df, RESULT_FILES['cleaned'])
+    print('[模块1] 数据清洗：完成')
+
     # 示例：先小样本试读，确认列结构
     # df = load_csv(RAW_FILES['signal'], header=None, nrows=1000, dtype=str)
     # quick_info(df)
