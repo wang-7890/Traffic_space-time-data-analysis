@@ -12,16 +12,17 @@ import matplotlib.pyplot as plt
 from haversine import haversine
 
 # 滑窗大小（分钟）：统计"过去 10 分钟"的人次
-WINDOW_MINUTES = 10
-TARGET_DATE = 20181003
-BATCH_SIZE = 10000
-HEATMAP_MATCH_THRESHOLD = 1000
 
-def main():
+def heatmap_analysis():
     """实时热力主流程（骨架，滑窗统计待实现）。"""
+    WINDOW_MINUTES = 10
+    TARGET_DATE = 20181003
+    BATCH_SIZE = 10000
+    HEATMAP_MATCH_THRESHOLD = 1000
+
     print(f'[模块5] 实时商圈热力：待实现（{WINDOW_MINUTES} 分钟滑窗）')
     #读取实时流数据
-    stream = load_csv(RAW_FILES['realtime'], header=None,names=['time','imsi','lon','lat'],dtype=str)
+    stream = load_csv(RAW_FILES['realtime'], hader=None,enames=['time','imsi','lon','lat'],dtype=str)
 
     before = len(stream)
     stream = stream.copy()
@@ -62,7 +63,7 @@ def main():
     stream['minute'] = stream['time_dt'].dt.floor('1min')
     panel = stream.groupby(['minute','biz_name']).size().unstack(fill_value=0)
     panel = panel.reindex(full_minutes , fill_value=0)
-    roll = panel.rolling(HEATMAP_MATCH_THRESHOLD,min_periods=1).sum()
+    roll = panel.rolling(WINDOW_MINUTES,min_periods=1).sum()
     result = roll.stack().reset_index()
     result.columns = ['time','biz_name','count']
     result = result[result['count']>0]
@@ -72,4 +73,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    heatmap_analysis()
