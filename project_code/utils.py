@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import logging
 
 from project_code.config import FIGURES_DIR, PROCESSED_DIR, RAW_DIR, RESULT_DIR
 
@@ -108,3 +109,19 @@ def Harversine(lon1,lat1,lon2,lat2,unit="km"):
     c = 2.0*np.arcsin(np.sqrt(a))
     dist = R * c
     return dist *1000.0 if unit == 'm' else dist
+
+
+# 初始化日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# 自定义log函数
+def log(msg, level="INFO"):
+    if level.upper() == "WARN":
+        logging.warning(msg)
+    elif level.upper() == "INFO":
+        logging.info(msg)
+    elif level.upper() == "ERROR":
+        logging.error(msg)

@@ -9,7 +9,7 @@ from project_code.config import RAW_FILES, RESULT_FILES
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from loguru import logger
+from utils import log
 
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams['font.sans-serif'] = ['SimHei']
