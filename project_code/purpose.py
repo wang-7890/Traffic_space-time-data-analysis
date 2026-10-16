@@ -6,8 +6,6 @@
       字段：经度、纬度、目的、目的地，如 "123.457628,41.722539,居住,北站广场"）
 输出：result/purpose_result.csv
 """
-import sys
-from pathlib import Path
 
 import sys
 from pathlib import Path
@@ -52,14 +50,14 @@ def main():
     print('[模块3] 出行目的识别：待实现')
     # df = load_csv(RAW_FILES['purpose'], header=None)  # GBK 编码 utils 会自动兜底
     # save_result(result_df, RESULT_FILES['purpose'])
-    # 1.读取阶段3输出结果（驻留标签结果）
+    # 1.读取阶段3输出结果
     df_stage3 = pd.read_csv(
         RESULT_FILES["stage3"],
         dtype={"imsi": str, "time": str, "lac_id": str, "cell_id": str}
     )
     df_stage3 = df_stage3.sort_values(["imsi", "time"]).reset_index(drop=True)
 
-    # 2.驻留段识别：合并连续驻留点 label=0为驻留
+    # 2.驻留段识别
     df_stage3["is_stay"] = df_stage3["label"] == 0
     df_stage3["user_change"] = df_stage3["imsi"] != df_stage3["imsi"].shift(1)
     df_stage3["stay_change"] = df_stage3["is_stay"] != df_stage3["is_stay"].shift(1)
@@ -75,7 +73,7 @@ def main():
         center_lat=("lat", "mean"),
     ).reset_index()
 
-    # 解析时间，计算驻留时长、起止小时
+    #开始时间，结束时间，驻留时间
     segments["start_dt"] = pd.to_datetime(segments["start_time"], format="%Y%m%d%H%M%S", errors="coerce")
     segments["end_dt"] = pd.to_datetime(segments["end_time"], format="%Y%m%d%H%M%S", errors="coerce")
     segments["duration_hours"] = (segments["end_dt"] - segments["start_dt"]).dt.total_seconds() / 3600
@@ -90,11 +88,13 @@ def main():
     print("\n时间规则判定结果分布：")
     print(segments["purpose_by_time"].value_counts().to_string())
 
+    # 4.读取POI静态数据，完整字段探查打印
     print("\n==== 读取出行目的POI静态数据 ====")
+
     poi_df = load_csv(RAW_FILES["purpose"], header=None)
 
-    # print(f"POI原始行数：{len(poi_df)}")
-    # print(f"POI原始列索引：{list(poi_df.columns)}")
+    print(f"POI原始行数：{len(poi_df)}")
+    print(f"POI原始列索引：{list(poi_df.columns)}")
     print("POI原始前5行：")
     print(poi_df.head().to_string(index=False))
 
