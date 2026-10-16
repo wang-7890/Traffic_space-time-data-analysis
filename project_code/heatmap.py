@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from project_code.config import RAW_FILES, RESULT_FILES  # noqa: E402
-from project_code.utils import load_csv, save_result  # noqa: E402
+from project_code.utils import load_csv, save_result,Harversine  # noqa: E402
 
 import pandas as pd
 import numpy as np
@@ -50,7 +50,7 @@ def heatmap_analysis():
     for s in range(0, n, BATCH_SIZE):
         e = min(s + BATCH_SIZE, n)
         # unit='m'：距离单位米！
-        d = haversine(p_lon[s:e,None], p_lat[s:e,None], biz_lon[None,:], biz_lat[None,:], unit='m')
+        d = Harversine(p_lon[s:e,None], p_lat[s:e,None], biz_lon[None,:], biz_lat[None,:], unit='m')
         nn  = d.argmin(axis=1)
         nd = d[np.arange(e-s), nn]
         hit = nd < HEATMAP_MATCH_THRESHOLD
