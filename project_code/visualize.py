@@ -9,7 +9,6 @@ from project_code.config import RAW_FILES, RESULT_FILES
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import log
 
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -24,7 +23,7 @@ def plt_pie(label_df: pd.DataFrame):
     pe=ax.pie([stay,travel],labels=['驻留','出行'],autopct="%1.1f%%",colors=["#2ca02c","#d62728"],startangle=90)
     ax.set_title('出行/驻留占比图',fontsize='12',fontweight='bold')
     plt.tight_layout()
-    save_fig(fig, 'fig_stage3_pie.png')
+    save_fig(fig, 'fig_purpose_bar.png')
     plt.close(fig)
 
 def plt_plot(label_df: pd.DataFrame):
@@ -110,8 +109,8 @@ def plt_heat(heatmap_df: pd.DataFrame):
     heatmap_data = np.zeros((len(top10_biz), 24))
     for i, biz in enumerate(top10_biz):
         sub = heatmap_df[heatmap_df["biz_name"] == biz]
-        for hour in range(24):
-            heatmap_data[i, hour] = sub[sub["time_dt"].dt.hour == hour]["count"].sum()
+    for hour in range(24):
+        heatmap_data[i, hour] = sub[sub["time_dt"].dt.hour == hour]["count"].sum()
     fig, ax = plt.subplots(figsize=(14, 6))
     im = ax.imshow(heatmap_data, aspect="auto", cmap="YlOrRd", interpolation="nearest")
     ax.set_xticks(range(24))
