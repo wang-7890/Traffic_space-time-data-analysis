@@ -39,7 +39,8 @@ RESULT_FILES = {
 
 # 中间数据文件名（data/processed/ 下，模块2 各阶段接力用）
 PROCESSED_FILES = {
-    'trajectory': 'trajectory_points.csv',  # 模块2 阶段1 轨迹点表
+    'trajectory': 'trajectory_points.csv',# 模块2 阶段1 轨迹点表
+    'stage2_cluster':'stage2_cluster.csv',
 }
 
 # ---------- 数据清洗参数（对应 Day4 课时 23~30 讲义） ----------
@@ -51,3 +52,15 @@ RAW_TIMEZONE_OFFSET_HOURS = 8        # 规则4：毫秒 UTC 时间戳转北京�
 # ---------- 阶段1 速度参数（对应 Day5 讲义：速度粗筛出行点） ----------
 SPEED_THRESHOLD = 8                  # 低于该速度视为静止（km/h）
 ABNORMAL_SPEED = 200                 # 高于该速度视为基站跳跃假高速，置空（不删行）
+
+# ---------- 阶段3 业务判定参数（对应 Day6 课时41 讲义） ----------
+CLUSTER_DIST_THRESHOLD = 1000        # 首/中/尾三点到簇中心距离阈值（米）
+TIME_SPAN_THRESHOLD = 2              # 簇首末时间跨度阈值（小时）
+
+# ---------- 模块3 出行目的参数（对应 Day6 课时45~46 讲义） ----------
+LIVING_DURATION_THRESHOLD = 4        # 居住：停留时长阈值（小时）
+PURPOSE_MATCH_THRESHOLD = 1000       # POI 最近邻匹配成功阈值（米）
+SHOPPING_START_HOUR = 9              # 购物时间窗 9:00-21:00
+SHOPPING_END_HOUR = 21
+TOUR_START_HOUR = 9                  # 旅游时间窗 9:00-17:00（购物窗的子集，判定时先窄后宽）
+TOUR_END_HOUR = 17
