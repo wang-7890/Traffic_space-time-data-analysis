@@ -42,7 +42,7 @@ def judge_purpose_by_time(start_hour, end_hour, duration_hours):
         return "购物"
     if start_hour >= 9 and end_hour <= 17:
         return "旅游"
-    return "other"
+    return 'order'
 
 
 def main():
