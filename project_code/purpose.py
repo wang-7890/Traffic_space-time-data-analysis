@@ -19,17 +19,6 @@ from project_code.config import RAW_FILES, RESULT_FILES,RESULT_DIR # noqa: E402
 from project_code.utils import load_csv,save_result,Harversine,_read_csv_any_encoding# noqa: E402
 
 
-def haversine(lon1, lat1, lon2, lat2, unit="km"):
-    """Haversine球面距离计算"""
-    R = 6371.0
-    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-    c = 2 * np.arcsin(np.sqrt(a))
-    dist = R * c
-    return dist * 1000 if unit == "m" else dist
-
 def judge_purpose_by_time(start_hour, end_hour, duration_hours):
     """
     时间规则判定出行目的（粗判，最终目的还要看 POI 匹配结果）
@@ -56,24 +45,27 @@ def judge_purpose_by_time(start_hour, end_hour, duration_hours):
 
 def main():
     """出行目的识别主流程：驻留段识别 → 时间规则粗判 → POI 匹配精判 → 融合输出。"""
-    print('[模块3] 出行目的识别：待实现')
-    # df = load_csv(RAW_FILES['purpose'], header=None)  # GBK 编码 utils 会自动兜底
-    # save_result(result_df, RESULT_FILES['purpose'])
+    print('[模块3] 出行目的识别')
     # 1.读取阶段3输出结果
     df_stage3 =_read_csv_any_encoding(
         RESULT_DIR/RESULT_FILES["stage3"],
         dtype={"imsi": str, "time": str, "lac_id": str, "cell_id": str}
     )
+    #按imsi和time排序，方便后续shift比较
     df_stage3 = df_stage3.sort_values(["imsi", "time"]).reset_index(drop=True)
 
-    # 2.驻留段识别
-    df_stage3["is_stay"] = df_stage3["label"] == 0
+    # 2.驻留段识别,同一imsi分段，遇到换人或者位置变化seg_id+1
+    df_stage3["is_stay"] = df_stage3["label"] == 0 #True代表驻留 False代表运动
+    # 判断人有没有变，变了则赋值为True
     df_stage3["user_change"] = df_stage3["imsi"] != df_stage3["imsi"].shift(1)
+    # 判断是否驻留，变了则赋值为True
     df_stage3["stay_change"] = df_stage3["is_stay"] != df_stage3["is_stay"].shift(1)
+    # 有任意一个变量就标记为True，代表此刻新开片段
     df_stage3["seg_change"] = df_stage3["user_change"] | df_stage3["stay_change"]
+    # 根据imsi分组，每组seg_id从1开始，遇到seg_change为True则+1
     df_stage3["seg_id"] = df_stage3.groupby("imsi")["seg_change"].cumsum()
-
-    stay_df = df_stage3[df_stage3["is_stay"]].copy()
+    stay_df = df_stage3[df_stage3["is_stay"]].copy() #只要驻留点
+    #对imsi和seg_id分组聚合，找到每一个片段的起始与终止时间，并计算出这一个驻留片段有多少条记录，计算中心经纬度
     segments = stay_df.groupby(["imsi", "seg_id"]).agg(
         start_time=("time", "min"),
         end_time=("time", "max"),
@@ -81,15 +73,15 @@ def main():
         center_lon=("lon", "mean"),
         center_lat=("lat", "mean"),
     ).reset_index()
-
-    #开始时间，结束时间，驻留时间
+    print(segments.head())
+    #开始时间，结束时间，驻留时间转化为datetime类型，方便计算
     segments["start_dt"] = pd.to_datetime(segments["start_time"], format="%Y%m%d%H%M%S", errors="coerce")
     segments["end_dt"] = pd.to_datetime(segments["end_time"], format="%Y%m%d%H%M%S", errors="coerce")
     segments["duration_hours"] = (segments["end_dt"] - segments["start_dt"]).dt.total_seconds() / 3600
     segments["start_hour"] = segments["start_dt"].dt.hour
     segments["end_hour"] = segments["end_dt"].dt.hour
 
-    # 3.时间规则判定目的
+    # 3.时间规则判定目的，axis=1表示取表格每一行
     segments["purpose_by_time"] = segments.apply(
         lambda r: judge_purpose_by_time(r["start_hour"], r["end_hour"], r["duration_hours"]),
         axis=1
@@ -118,10 +110,10 @@ def main():
 
     print("\nPOI缺失值统计：")
     print(poi_df.isnull().sum().to_string())
-
+    #将对应值转换为数字（int/float），无法转换的赋值为NaN
     poi_df["lon"] = pd.to_numeric(poi_df["lon"], errors="coerce")
     poi_df["lat"] = pd.to_numeric(poi_df["lat"], errors="coerce")
-
+    #数据清洗
     before_clean = len(poi_df)
     poi_df = poi_df.dropna(subset=["lon", "lat"]).drop_duplicates()
     after_clean = len(poi_df)
@@ -136,16 +128,17 @@ def main():
     segments["nearest_poi_type"] = None
     segments["nearest_dist_m"] = np.nan
     segments["match_success"] = False
-
     poi_lons = poi_df["lon"].values
     poi_lats = poi_df["lat"].values
 
     for idx, seg in segments.iterrows():
+        #算距离，返回数组，代表该驻留片段距离最近的POI
         dists = Harversine(seg["center_lon"], seg["center_lat"], poi_lons, poi_lats, unit="m")
         min_idx = np.argmin(dists)
         min_dist = dists[min_idx]
         if min_dist < MATCH_THRESHOLD:
             poi_item = poi_df.iloc[min_idx]
+            #at(行索引,列名)用于读写一个格子的值
             segments.at[idx, "nearest_poi_name"] = poi_item["poi_name"]
             segments.at[idx, "nearest_poi_type"] = poi_item["poi_type"]
             segments.at[idx, "nearest_dist_m"] = min_dist
@@ -155,11 +148,10 @@ def main():
     print(f"\n空间匹配完成：匹配成功 {match_cnt} / {len(segments)}，匹配率 {match_cnt / len(segments) * 100:.1f}%")
 
     # 最终目的融合：POI 优先 + 时间规则兜底
-    # 第一步先用时间规则结果打底，第二步把"匹配成功"的段用最近 POI 的类型覆盖。
-    # POI 是真实目的标注（居住/购物/旅游），比时间窗推断更权威；
-    # 没匹配上的段保留时间规则结果（"其他"只可能出现在这里）
-    segments["final_purpose"] = segments["purpose_by_time"]
+    segments["final_purpose"] = segments["purpose_by_time"] #先默认按照时间匹配
+    #将一串True False序列但会给matched，用于找到经过POI匹配到的记录
     matched = segments["match_success"]
+    #利用df.loc[]传入布尔序列，用nearest_poi_type列对match_success为True的记录进行覆盖
     segments.loc[matched, "final_purpose"] = segments.loc[matched, "nearest_poi_type"]
     print("\n最终出行目的分布：")
     print(segments["final_purpose"].value_counts().to_string())

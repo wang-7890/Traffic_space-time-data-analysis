@@ -69,12 +69,14 @@ def main():
     print(f"读取stage3数据：{len(df_stage3)}行")
 
     # 2.生成出行段seg_id，label==1为出行
+    #与驻留目的分析一致，对所有用户进行切片
     df_stage3["is_travel"] = df_stage3["label"] == 1
     df_stage3["user_shift"] = df_stage3["imsi"] != df_stage3["imsi"].shift(1)
     df_stage3["travel_shift"] = df_stage3["is_travel"] != df_stage3["is_travel"].shift(1)
     df_stage3["seg_change"] = df_stage3["user_shift"] | df_stage3["travel_shift"]
+    # 根据imsi分组，每组seg_id从1开始，遇到seg_change为True则+1
     df_stage3["seg_id"] = df_stage3.groupby("imsi")["seg_change"].cumsum()
-
+    #只找出行的人
     travel_all = df_stage3[df_stage3["is_travel"]].copy()
 
     # 聚合每个出行段
@@ -91,10 +93,10 @@ def main():
     # 过滤至少2个点的出行段
     seg_df = seg_df[seg_df["point_count"] >= 2].copy()
     print(f"有效出行段数量：{len(seg_df)}")
-
     # 3.逐段计算平均速度：相邻轨迹点 距离/时间差 = 点间速度，段内取均值
     speed_list = []
     for _, seg in seg_df.iterrows():
+        #按照用户和segid计算每一个出行段的相关数据
         one_seg = travel_all[(travel_all["imsi"] == seg["imsi"]) & (travel_all["seg_id"] == seg["seg_id"])].copy()
         one_seg = one_seg.sort_values("time").reset_index(drop=True)
         one_seg["dt"] = pd.to_datetime(one_seg["time"], format="%Y%m%d%H%M%S", errors="coerce")
@@ -103,12 +105,14 @@ def main():
         one_seg["lat_prev"] = one_seg["lat"].shift(1)
         one_seg["dist_m"] = haversine(one_seg["lon_prev"], one_seg["lat_prev"], one_seg["lon"], one_seg["lat"])
         one_seg["speed_kmh"] = one_seg["dist_m"] / 1000 * 3600 / one_seg["dt_diff"]  # 米/秒 × 3.6 = km/h
+        #获得有效表，剔除速度不正常的记录
         valid = one_seg[(one_seg["speed_kmh"] > 0) & (one_seg["speed_kmh"] < 200)]   # 剔 0（同点）和假高速
         sp_mean = valid["speed_kmh"].mean() if len(valid) > 0 else np.nan
         speed_list.append(sp_mean)
 
     seg_df["avg_speed"] = speed_list
     seg_df = seg_df[seg_df["avg_speed"].notna()].copy()
+    #根据速度初步判定，后续根据规则详细判定
     seg_df["mode_speed"] = seg_df["avg_speed"].apply(judge_mode_by_speed)
 
     # 4.读取出行方式静态数据，拼接RAW_DIR完整路径！
