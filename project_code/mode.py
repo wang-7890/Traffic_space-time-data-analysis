@@ -8,10 +8,49 @@
 import sys
 from pathlib import Path
 
+import sys
+from pathlib import Path
+import pandas as pd
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from project_code.config import RAW_FILES, RESULT_FILES  # noqa: E402
+from project_code.config import RAW_DIR,RAW_FILES, RESULT_FILES  # noqa: E402
 from project_code.utils import load_csv, save_result  # noqa: E402
+
+MATCH_THRESHOLD = 500
+SUBWAY_MIN_POINTS = 2
+BUS_MIN_POINTS = 3
+SPEED_OTHER = 12
+SPEED_BUS = 20
+
+def haversine(lon1, lat1, lon2, lat2, unit="m"):
+    R = 6371.0
+    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arcsin(np.sqrt(a))
+    dist_m = R * c * 1000
+    return dist_m if unit == "m" else dist_m / 1000
+
+def judge_mode_by_speed(avg_speed):
+    if avg_speed < SPEED_OTHER:
+        return "其他"
+    elif avg_speed <= SPEED_BUS:
+        return "公交"
+    else:
+        return "地铁或小汽车"
+
+def final_mode_judge(subway_cnt, bus_cnt, avg_speed):
+    if subway_cnt >= SUBWAY_MIN_POINTS:
+        return "地铁"
+    elif bus_cnt >= BUS_MIN_POINTS:
+        return "公交"
+    elif avg_speed > SPEED_BUS:
+        return "小汽车"
+    else:
+        return "其他"
 
 
 def main():
@@ -19,6 +58,110 @@ def main():
     print('[模块4] 出行方式识别：待实现')
     # df = load_csv(RAW_FILES['mode'], header=None)
     # save_result(result_df, RESULT_FILES['mode'])
+    # 1.读取stage3_label.csv
+    df_stage3 = load_csv(RESULT_FILES["stage"])
+    df_stage3 = df_stage3.sort_values(["imsi", "time"]).reset_index(drop=True)
+    print(f"读取stage3数据：{len(df_stage3)}行")
+
+    # 2.生成出行段seg_id，label==1为出行
+    df_stage3["is_travel"] = df_stage3["label"] == 1
+    df_stage3["user_shift"] = df_stage3["imsi"] != df_stage3["imsi"].shift(1)
+    df_stage3["travel_shift"] = df_stage3["is_travel"] != df_stage3["is_travel"].shift(1)
+    df_stage3["seg_change"] = df_stage3["user_shift"] | df_stage3["travel_shift"]
+    df_stage3["seg_id"] = df_stage3.groupby("imsi")["seg_change"].cumsum()
+
+    travel_all = df_stage3[df_stage3["is_travel"]].copy()
+
+    # 聚合每个出行段
+    seg_df = travel_all.groupby(["imsi", "seg_id"]).agg(
+        start_time=("time", "min"),
+        end_time=("time", "max"),
+        point_count=("time", "count"),
+        lon_start=("lon", "first"),
+        lat_start=("lat", "first"),
+        lon_end=("lon", "last"),
+        lat_end=("lat", "last"),
+    ).reset_index()
+
+    # 过滤至少2个点的出行段
+    seg_df = seg_df[seg_df["point_count"] >= 2].copy()
+    print(f"有效出行段数量：{len(seg_df)}")
+
+    # 3.逐段计算平均速度
+    speed_list = []
+    for _, seg in seg_df.iterrows():
+        one_seg = travel_all[(travel_all["imsi"] == seg["imsi"]) & (travel_all["seg_id"] == seg["seg_id"])].copy()
+        one_seg = one_seg.sort_values("time").reset_index(drop=True)
+        one_seg["dt"] = pd.to_datetime(one_seg["time"], format="%Y%m%d%H%M%S", errors="coerce")
+        one_seg["dt_diff"] = one_seg["dt"].diff().dt.total_seconds()
+        one_seg["lon_prev"] = one_seg["lon"].shift(1)
+        one_seg["lat_prev"] = one_seg["lat"].shift(1)
+        one_seg["dist_m"] = haversine(one_seg["lon_prev"], one_seg["lat_prev"], one_seg["lon"], one_seg["lat"])
+        one_seg["speed_kmh"] = one_seg["dist_m"] / 1000 * 3600 / one_seg["dt_diff"]
+        valid = one_seg[(one_seg["speed_kmh"] > 0) & (one_seg["speed_kmh"] < 200)]
+        sp_mean = valid["speed_kmh"].mean() if len(valid) > 0 else np.nan
+        speed_list.append(sp_mean)
+
+    seg_df["avg_speed"] = speed_list
+    seg_df = seg_df[seg_df["avg_speed"].notna()].copy()
+    seg_df["mode_speed"] = seg_df["avg_speed"].apply(judge_mode_by_speed)
+
+    # 4.读取出行方式静态数据，拼接RAW_DIR完整路径！
+    mode_file = RAW_DIR / RAW_FILES["mode"]
+    print(f"读取站点文件：{mode_file} , exists={mode_file.exists()}")
+    station_df = load_csv(mode_file, header=None)
+    station_df.columns = ["lon", "lat",'mode_type','station_name','line_name']
+
+    # 清洗站点
+    station_df["lon"] = pd.to_numeric(station_df["lon"], errors="coerce")
+    station_df["lat"] = pd.to_numeric(station_df["lat"], errors="coerce")
+    station_df = station_df.dropna(subset=["lon", "lat"]).drop_duplicates()
+
+    subway_sta = station_df[station_df["mode_type"].str.contains("地铁", na=False)].copy()
+    bus_sta = station_df[station_df["mode_type"].str.contains("公交", na=False)].copy()
+
+    sub_lon_arr = subway_sta["lon"].values
+    sub_lat_arr = subway_sta["lat"].values
+    bus_lon_arr = bus_sta["lon"].values
+    bus_lat_arr = bus_sta["lat"].values
+
+    # 5.每个出行段匹配站点，统计命中点数
+    subway_hit = []
+    bus_hit = []
+    final_mode_list = []
+
+    for _, seg in seg_df.iterrows():
+        one_seg = travel_all[(travel_all["imsi"] == seg["imsi"]) & (travel_all["seg_id"] == seg["seg_id"])].copy()
+        sub_cnt = 0
+        bu_cnt = 0
+        for _, p in one_seg.iterrows():
+            d_sub = haversine(p["lon"], p["lat"], sub_lon_arr, sub_lat_arr)
+            if np.any(d_sub < MATCH_THRESHOLD):
+                sub_cnt += 1
+            d_bus = haversine(p["lon"], p["lat"], bus_lon_arr, bus_lat_arr)
+            if np.any(d_bus < MATCH_THRESHOLD):
+                bu_cnt += 1
+        subway_hit.append(sub_cnt)
+        bus_hit.append(bu_cnt)
+        fm = final_mode_judge(sub_cnt, bu_cnt, seg["avg_speed"])
+        final_mode_list.append(fm)
+
+    seg_df["subway_hit_count"] = subway_hit
+    seg_df["bus_hit_count"] = bus_hit
+    seg_df["final_mode"] = final_mode_list
+
+    print("\n====出行方式统计====")
+    print(seg_df["final_mode"].value_counts().to_string())
+
+    # 6.输出结果，调用项目工具 save_result
+    out_cols = [
+        "imsi", "seg_id", "start_time", "end_time", "point_count",
+        "lon_start", "lat_start", "lon_end", "lat_end",
+        "avg_speed", "mode_speed", "subway_hit_count", "bus_hit_count", "final_mode"
+    ]
+    result_df = seg_df[out_cols].copy()
+    save_result(result_df, RESULT_FILES["mode"])
+    print(f"模块4完成，输出mode_result.csv，共{len(result_df)}条出行段")
 
 
 if __name__ == '__main__':
