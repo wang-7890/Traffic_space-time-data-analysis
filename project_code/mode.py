@@ -15,14 +15,15 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from project_code.config import RAW_DIR,RAW_FILES, RESULT_FILES  # noqa: E402
-from project_code.utils import load_csv, save_result  # noqa: E402
+from project_code.config import RAW_DIR,RAW_FILES, RESULT_FILES ,RESULT_DIR # noqa: E402
+from project_code.utils import load_csv, save_result,_read_csv_any_encoding  # noqa: E402
 
-MATCH_THRESHOLD = 500
-SUBWAY_MIN_POINTS = 2
-BUS_MIN_POINTS = 3
-SPEED_OTHER = 12
-SPEED_BUS = 20
+# 判定参数（课时45/46 阈值）：
+MATCH_THRESHOLD = 500       # 站点匹配阈值：出行点到地铁/公交站 500 米内算"命中"
+SUBWAY_MIN_POINTS = 2       # 一段出行里命中 ≥2 个地铁站 → 判地铁
+BUS_MIN_POINTS = 3          # 命中 ≥3 个公交站 → 判公交（公交站更密、易误命中，阈值比地铁高）
+SPEED_OTHER = 12            # 平均速度 < 12 km/h → "其他"（步行等慢速出行）
+SPEED_BUS = 20              # 平均速度 12~20 → 公交档；> 20 → 地铁或小汽车档
 
 def haversine(lon1, lat1, lon2, lat2, unit="m"):
     R = 6371.0
@@ -35,6 +36,9 @@ def haversine(lon1, lat1, lon2, lat2, unit="m"):
     return dist_m if unit == "m" else dist_m / 1000
 
 def judge_mode_by_speed(avg_speed):
+    """按平均速度粗判方式（结果存 mode_speed 列，仅作参考）：
+    <12 其他（步行等）/ 12~20 公交档 / >20 地铁或小汽车档。
+    地铁和小汽车速度接近，单靠速度分不开，要靠后面站点匹配区分。"""
     if avg_speed < SPEED_OTHER:
         return "其他"
     elif avg_speed <= SPEED_BUS:
@@ -43,6 +47,11 @@ def judge_mode_by_speed(avg_speed):
         return "地铁或小汽车"
 
 def final_mode_judge(subway_cnt, bus_cnt, avg_speed):
+    """最终方式判定（站点匹配优先，速度兜底）：
+    1) 命中 ≥2 个地铁站 → 地铁（地铁站间距大、误命中少，最可信）
+    2) 命中 ≥3 个公交站 → 公交
+    3) 都没命中但速度快 >20 → 小汽车（不靠站、速度快的机动出行）
+    4) 其余 → 其他"""
     if subway_cnt >= SUBWAY_MIN_POINTS:
         return "地铁"
     elif bus_cnt >= BUS_MIN_POINTS:
@@ -54,12 +63,8 @@ def final_mode_judge(subway_cnt, bus_cnt, avg_speed):
 
 
 def main():
-    """出行方式识别主流程（骨架，待实现）。"""
-    print('[模块4] 出行方式识别：待实现')
-    # df = load_csv(RAW_FILES['mode'], header=None)
-    # save_result(result_df, RESULT_FILES['mode'])
-    # 1.读取stage3_label.csv
-    df_stage3 = load_csv(RESULT_FILES["stage"])
+    print('[模块4] 出行方式识别')
+    df_stage3 = _read_csv_any_encoding(RESULT_DIR/RESULT_FILES["stage3"])
     df_stage3 = df_stage3.sort_values(["imsi", "time"]).reset_index(drop=True)
     print(f"读取stage3数据：{len(df_stage3)}行")
 
@@ -87,18 +92,18 @@ def main():
     seg_df = seg_df[seg_df["point_count"] >= 2].copy()
     print(f"有效出行段数量：{len(seg_df)}")
 
-    # 3.逐段计算平均速度
+    # 3.逐段计算平均速度：相邻轨迹点 距离/时间差 = 点间速度，段内取均值
     speed_list = []
     for _, seg in seg_df.iterrows():
         one_seg = travel_all[(travel_all["imsi"] == seg["imsi"]) & (travel_all["seg_id"] == seg["seg_id"])].copy()
         one_seg = one_seg.sort_values("time").reset_index(drop=True)
         one_seg["dt"] = pd.to_datetime(one_seg["time"], format="%Y%m%d%H%M%S", errors="coerce")
-        one_seg["dt_diff"] = one_seg["dt"].diff().dt.total_seconds()
-        one_seg["lon_prev"] = one_seg["lon"].shift(1)
+        one_seg["dt_diff"] = one_seg["dt"].diff().dt.total_seconds()          # 相邻点时间差（秒）
+        one_seg["lon_prev"] = one_seg["lon"].shift(1)                          # 上一个点的坐标
         one_seg["lat_prev"] = one_seg["lat"].shift(1)
         one_seg["dist_m"] = haversine(one_seg["lon_prev"], one_seg["lat_prev"], one_seg["lon"], one_seg["lat"])
-        one_seg["speed_kmh"] = one_seg["dist_m"] / 1000 * 3600 / one_seg["dt_diff"]
-        valid = one_seg[(one_seg["speed_kmh"] > 0) & (one_seg["speed_kmh"] < 200)]
+        one_seg["speed_kmh"] = one_seg["dist_m"] / 1000 * 3600 / one_seg["dt_diff"]  # 米/秒 × 3.6 = km/h
+        valid = one_seg[(one_seg["speed_kmh"] > 0) & (one_seg["speed_kmh"] < 200)]   # 剔 0（同点）和假高速
         sp_mean = valid["speed_kmh"].mean() if len(valid) > 0 else np.nan
         speed_list.append(sp_mean)
 
@@ -110,7 +115,7 @@ def main():
     mode_file = RAW_DIR / RAW_FILES["mode"]
     print(f"读取站点文件：{mode_file} , exists={mode_file.exists()}")
     station_df = load_csv(mode_file, header=None)
-    station_df.columns = ["lon", "lat",'mode_type','station_name','line_name']
+    station_df.columns = ["lon", "lat",'mode_type','station_name','line_name']  # 文件字段：经度,纬度,方式类型,站点名,线路名
 
     # 清洗站点
     station_df["lon"] = pd.to_numeric(station_df["lon"], errors="coerce")
@@ -134,11 +139,12 @@ def main():
         one_seg = travel_all[(travel_all["imsi"] == seg["imsi"]) & (travel_all["seg_id"] == seg["seg_id"])].copy()
         sub_cnt = 0
         bu_cnt = 0
+        # 逐个轨迹点判断是否"压过"地铁站/公交站：500 米内算命中一次
         for _, p in one_seg.iterrows():
-            d_sub = haversine(p["lon"], p["lat"], sub_lon_arr, sub_lat_arr)
+            d_sub = haversine(p["lon"], p["lat"], sub_lon_arr, sub_lat_arr)   # 该点到所有地铁站的距离
             if np.any(d_sub < MATCH_THRESHOLD):
                 sub_cnt += 1
-            d_bus = haversine(p["lon"], p["lat"], bus_lon_arr, bus_lat_arr)
+            d_bus = haversine(p["lon"], p["lat"], bus_lon_arr, bus_lat_arr)   # 该点到所有公交站的距离
             if np.any(d_bus < MATCH_THRESHOLD):
                 bu_cnt += 1
         subway_hit.append(sub_cnt)

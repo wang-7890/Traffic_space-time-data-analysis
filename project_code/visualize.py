@@ -134,8 +134,11 @@ def plt_bar4(mode_df: pd.DataFrame):
 def plt_heat(heatmap_df: pd.DataFrame):
     """图5：Top10 商圈 ×24 小时热力矩阵（课时56 第五节：groupby+unstack 成透视表）。"""
     print("生成图5：商圈热力图")
-    t = pd.to_datetime(heatmap_df["time"])
-    heatmap_df = heatmap_df.assign(hour=t.dt.hour).dropna(subset=["hour"])
+    # heatmap_result.csv 里 hour 列已由模块5算好；只有老格式（time 列）才需要换算
+    if "hour" not in heatmap_df.columns:
+        t = pd.to_datetime(heatmap_df["time"])
+        heatmap_df = heatmap_df.assign(hour=t.dt.hour)
+    heatmap_df = heatmap_df.dropna(subset=["hour"])
     pivot = heatmap_df.groupby(["biz_name", "hour"])["count"].max().unstack(fill_value=0)
     pivot = pivot.reindex(columns=range(24), fill_value=0)
     top = pivot.max(axis=1).sort_values(ascending=False).head(10)

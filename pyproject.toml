@@ -9,6 +9,7 @@ dependencies = [
     "matplotlib",
     "loguru>=0.7.3",
     "haversine>=2.9.0",
+    "streamlit>=1.66.0",
 ]
 
 # 本项目是数据分析脚本集合，不是可安装的 Python 包：

@@ -4,19 +4,19 @@ from pathlib import Path
 import sys
 # 把项目根目录加入路径，复用配置/工具函数（可选，KPI统计用）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from project_code.config import RAW_FILES
-from project_code.utils import load_csv
+from project_code.config import RESULT_FILES,RESULT_DIR
+from project_code.utils import _read_csv_any_encoding
 
 # ========= 页面基础配置 =========
 st.set_page_config(page_title="用户时空出行驻留分析看板", layout="wide")
 st.title("用户时空出行驻留分析 Dashboard")
 
 # 图片目录：save_fig输出的目录，和你utils里save_fig保持一致
-FIG_DIR = Path("./result/figures")
+FIG_DIR = Path(__file__).resolve().parent.parent / "result" / "figures"
 
 # ========= 顶部KPI指标栏 =========
 st.subheader("📊 全局指标概览")
-label_df = load_csv(RAW_FILES['stage3'], header=None)
+label_df = _read_csv_any_encoding(RESULT_DIR/RESULT_FILES['stage3'], dtype={'imsi': str})
 total = len(label_df)
 stay_cnt = (label_df["label"] == 0).sum()
 travel_cnt = (label_df["label"] == 1).sum()

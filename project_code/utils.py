@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import logging
+import time
 
 from project_code.config import FIGURES_DIR, PROCESSED_DIR, RAW_DIR, RESULT_DIR
 
@@ -29,7 +30,7 @@ def _read_csv_any_encoding(path: Path, **kwargs) -> pd.DataFrame:
 
 
 def load_csv(filename: str, **kwargs) -> pd.DataFrame:
-    """读取 data/raw/ 下的 CSV 文件。
+    """读取 data/raw/ 下的 CSV 文件，用于加载原数据
 
     参数:
         filename: 文件名，建议用 config.RAW_FILES 里的常量，如 RAW_FILES['signal']
@@ -125,3 +126,16 @@ def log(msg, level="INFO"):
         logging.info(msg)
     elif level.upper() == "ERROR":
         logging.error(msg)
+
+
+class Timer:
+    """计时上下文管理器（课时57：main 一键集成时统计每模块耗时）。"""
+    def __init__(self, name: str = ""):
+        self.name = name
+
+    def __enter__(self):
+        self._start = time.time()
+        return self
+
+    def __exit__(self, *exc):
+        print(f'[耗时] {self.name}: {time.time() - self._start:.1f} 秒')

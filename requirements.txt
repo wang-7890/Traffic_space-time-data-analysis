@@ -1,3 +1,6 @@
 pandas
 numpy
 matplotlib
+loguru
+haversine
+# streamlit  # Dashboard 大屏需要，按需安装
