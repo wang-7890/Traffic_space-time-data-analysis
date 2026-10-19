@@ -26,7 +26,7 @@ from project_code.config import (  # noqa: E402
     RESULT_FILES,
     SPEED_THRESHOLD,
 )
-from project_code.utils import Harversine, parse_time, save_processed  # noqa: E402
+from project_code.utils import Harversine, parse_time, save_processed,_read_csv_any_encoding # noqa: E402
 
 # 轨迹点表字段契约（阶段2 只认这张表）
 TRAJECTORY_COLS = [
@@ -40,10 +40,11 @@ def main():
     print('[模块2-阶段1] 出行驻留识别-预处理：开始')
 
     # 读标准表（imsi / lac_id / cell_id 必须按字符串读，防止丢前导零）
-    df = pd.read_csv(
+    df = _read_csv_any_encoding(
         RESULT_DIR / RESULT_FILES['cleaned'],
         dtype={'imsi': str, 'lac_id': str, 'cell_id': str},
     )
+    #去掉低频率点
     df['time_dt'] = parse_time(df['time'])
     loc_cnt = df.groupby(["imsi","lon","lat"]).size().reset_index(name='cnt')
     low_freq = loc_cnt[loc_cnt['cnt']<4][['imsi','lat','lon']]

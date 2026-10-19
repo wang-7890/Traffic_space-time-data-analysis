@@ -10,7 +10,6 @@ from haversine import haversine
 
 # 滑窗大小（分钟）：统计"过去 10 分钟"的人次
 def heatmap_analysis():
-    """实时热力主流程（骨架，滑窗统计待实现）。"""
     WINDOW_MINUTES = 10
     TARGET_DATE = 20181003
     BATCH_SIZE = 10000

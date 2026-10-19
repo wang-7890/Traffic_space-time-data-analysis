@@ -37,7 +37,7 @@ def main():
         cluster[['imsi','time','cluster','is_single_cluster']],
         on=['imsi','time'],how='left'
     )
-    assert len(df) == len(cleaned)  # 课时40：左连接后行数必须不变（防 cluster 表 (imsi,time) 重复）
+    assert len(df) == len(cleaned)  # assert判定，左连接后行数不变继续运行（防 cluster 表 (imsi,time) 重复）
     df['cluster'] = df['cluster'].fillna(-1).astype(int)
     df['is_single_cluster'] = df['is_single_cluster'].fillna(0).astype(int)
     df['time_dt'] = parse_time(df['time'])

@@ -28,7 +28,6 @@ from project_code import (  # noqa: E402
     visualize,
 )
 
-# 按 PPT 1.2.3 的数据流顺序排列
 PIPELINE = [
     ('① 数据清洗', data_clean),
     ('② 出行驻留识别 · 阶段1 预处理', tr_stage1),
