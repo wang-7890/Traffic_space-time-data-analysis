@@ -14,7 +14,7 @@
 输入：result/ 下的各模块结果表（均带表头）——
 stage3_label.csv（模块2）、purpose_result.csv（模块3）、mode_result.csv（模块4）、
 heatmap_result.csv（模块5）。未产出的表打印警告并跳过对应图；单张图失败只警告，
-不影响其他图（课时56 第七节）。
+不影响其他图。
 """
 import sys
 from pathlib import Path
@@ -57,7 +57,7 @@ def plt_pie(label_df: pd.DataFrame):
 
 
 def plt_plot(label_df: pd.DataFrame):
-    """图2：24 小时出行/驻留双折线（课时42 的合理性检查画成图）。"""
+    """图2：24 小时出行/驻留双折线。"""
     print("生成图2：24 小时出行/驻留折线")
     fig, ax1 = plt.subplots(figsize=(10, 9))
     dt = pd.to_datetime(label_df['time'], format='%Y%m%d%H%M%S')
@@ -132,7 +132,7 @@ def plt_bar4(mode_df: pd.DataFrame):
 
 
 def plt_heat(heatmap_df: pd.DataFrame):
-    """图5：Top10 商圈 ×24 小时热力矩阵（课时56 第五节：groupby+unstack 成透视表）。"""
+    """图5：Top10 商圈 ×24 小时热力矩阵（groupby+unstack 成透视表）。"""
     print("生成图5：商圈热力图")
     # heatmap_result.csv 里 hour 列已由模块5算好；只有老格式（time 列）才需要换算
     if "hour" not in heatmap_df.columns:
@@ -160,7 +160,7 @@ def plt_heat(heatmap_df: pd.DataFrame):
 
 
 def plt_3d_traj(label_df: pd.DataFrame):
-    """图6：Top5 用户 3D 时空轨迹（x/y=空间，z=时间，课时56 第六节）。"""
+    """图6：Top5 用户 3D 时空轨迹（x/y=空间，z=时间）。"""
     print("生成图6：用户 3D 时空轨迹")
     label_df = label_df.copy()
     label_df['time_dt'] = pd.to_datetime(label_df['time'], format='%Y%m%d%H%M%S')
@@ -198,10 +198,10 @@ def visualize_all():
             return None
         return _read_csv_any_encoding(path, dtype={'imsi': str})
 
-    label_df = load_result('stage3')    # 模块2（已完成）
-    purpose_df = load_result('purpose')  # 模块3（未产出则跳过图3）
-    mode_df = load_result('mode')        # 模块4（未产出则跳过图4）
-    heat_df = load_result('heatmap')     # 模块5（未产出则跳过图5）
+    label_df = load_result('stage3')
+    purpose_df = load_result('purpose')
+    mode_df = load_result('mode')
+    heat_df = load_result('heatmap')
 
     plot_tasks = [
         ("图1 出行/驻留占比饼图", plt_pie, label_df),

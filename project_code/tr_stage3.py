@@ -28,8 +28,12 @@ from project_code.utils import (  # noqa: E402
 
 
 def main():
-    """业务判定主流程（课时40~41）：单点簇直接判出行；
-    多点簇"首/中/尾三点到簇中心距离都 <1km 且首末跨度 <2h"判驻留，否则判出行。"""
+    """
+    阶段3：根据阶段2传来的带有簇编号和是否为单点簇的所有疑似出行的记录，与最开始清洗后的表进行左连接，目的是得到一个完整的出行驻留记录，接下来要对疑似
+    出行的点进行判定。左连接后，进行聚类的点是可以匹配到cluster和is_single_cluster的，而最开始阶段1没被粗筛掉的明显停留点无法匹配上，全部重置为-1
+    ，再新增一列label，默认全部驻留，这样既包括了没有参与聚类的点和参与过聚类的点，然后在利用cluster>=0筛选出参与聚类的点，根据规则：单点簇直接判出行
+    多点簇根据首中尾到簇中心的距离和时间跨度判定驻留与出行，出行的记录更新label为1，最后返回更新完的表
+    """
     print('[模块2-阶段3] 出行驻留识别-业务判定：开始')
     cluster = _read_csv_any_encoding(PROCESSED_DIR/PROCESSED_FILES['stage2_cluster'],dtype={'imsi':str})
     cleaned = _read_csv_any_encoding(RESULT_DIR/RESULT_FILES['cleaned'],dtype={'imsi':str,"lac_id":str,'cell_id':str})
@@ -38,17 +42,20 @@ def main():
         on=['imsi','time'],how='left'
     )
     assert len(df) == len(cleaned)  # assert判定，左连接后行数不变继续运行（防 cluster 表 (imsi,time) 重复）
-    df['cluster'] = df['cluster'].fillna(-1).astype(int)
+    df['cluster'] = df['cluster'].fillna(-1).astype(int) #cluster是阶段2聚类过的点，其他未聚类过的点标记为-1
     df['is_single_cluster'] = df['is_single_cluster'].fillna(0).astype(int)
     df['time_dt'] = parse_time(df['time'])
     df = df.sort_values(['imsi','time']).reset_index(drop=True)
+    #默认全部驻留
     df["label"] = 0
-
+    #找到被聚类过的点，后续根据分过的簇，按imsi分组进行判断
     clustered = df[df['cluster']>=0]
     n_single_travel = 0
     n_multi_travel = 0
     n_multi_stay = 0
+    #groupby后返回((imsi,cluster),子DataFrame)
     for (imsi,cid),g in clustered.groupby(['imsi','cluster'],sort=False):
+        #记录下属于该簇的所有元素在原表里的行索引
         idx=g.index
         if int(g['is_single_cluster'].iloc[0]) == 1 or len(g) == 1:
             df.loc[idx,"label"] = 1

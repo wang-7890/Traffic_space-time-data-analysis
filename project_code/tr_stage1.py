@@ -36,7 +36,11 @@ TRAJECTORY_COLS = [
 
 
 def main():
-    """预处理主流程。"""
+    """
+    第一阶段：根据第一模块清洗过后的数据，进行粗筛，先过滤掉低频率点（52-57），然后按用户分组，求出每一个用户每一条记录的速度（59-73）
+    将速度明显是出行的点打上标记，输出给阶段2（74-80）
+
+    """
     print('[模块2-阶段1] 出行驻留识别-预处理：开始')
 
     # 读标准表（imsi / lac_id / cell_id 必须按字符串读，防止丢前导零）
@@ -72,6 +76,7 @@ def main():
 
     travel = df[df["is_travel"]].copy()
     travel = travel[["imsi","time","lac_id","cell_id","lon","lat","speed"]]
+    #保留出行点
     save_processed(travel,"stage1_dt.csv")
     return travel
 if __name__ == '__main__':
