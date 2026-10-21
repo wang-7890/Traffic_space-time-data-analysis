@@ -6,10 +6,12 @@ from project_code.utils import load_csv, save_result,Harversine  # noqa: E402
 
 import pandas as pd
 import numpy as np
-from haversine import haversine
 
 # 滑窗大小（分钟）：统计"过去 10 分钟"的人次
 def heatmap_analysis():
+    """
+    把一天25万条实时定位流，按距离哪个商圈最近打上标签，丢弃无效行，只要20181003的记录
+    """
     WINDOW_MINUTES = 10
     TARGET_DATE = 20181003
     BATCH_SIZE = 10000
@@ -55,7 +57,7 @@ def heatmap_analysis():
         hit = nd < HEATMAP_MATCH_THRESHOLD
         matched[s + np.where(hit)[0]] = nn[hit]
 
-    # ========== 回填商圈名称到stream ==========
+    #回填商圈名称到stream
     stream['biz_idx'] = matched
     stream['biz_name'] = None
     valid_mask = stream['biz_idx'] != -1

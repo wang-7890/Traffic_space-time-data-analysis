@@ -50,7 +50,7 @@ def _step(name: str, before: int, after: int) -> None:
 
 
 def sample_by_user(df: pd.DataFrame) -> pd.DataFrame:
-    """整用户抽样（课时28）：以"用户"为单位抽样，选中就保留完整轨迹。
+    """整用户抽样：以"用户"为单位抽样，选中就保留完整轨迹。
 
     规则：
     - 在当天点数 >= MIN_POINTS_PER_USER 的合格用户里随机打乱（random_state 固定可复现）

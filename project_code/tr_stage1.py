@@ -1,14 +1,14 @@
-"""模块2 阶段1：出行 & 驻留识别 —— 预处理（PPT 1.2.3 数据流第 2 环）。
+"""模块2 阶段1：出行 & 驻留识别 —— 预处理。
 
-本文件负责：把清洗后的标准表整理成按用户、按时间排序的轨迹点表：
-- 用 groupby(imsi).shift(1) 找"同一用户上一条记录"（课时27：排序是这一步的前提）
+本文件负责：把清洗后的标准表按用户、按时间排序，并计算每条记录的相邻点速度：
+- 用 groupby(imsi).shift(1) 找"同一用户上一条记录"
 - 计算相邻点时间差 time_diff（秒）与 Haversine 距离 dist_km（公里）
 - 速度 speed = dist / time；异常速度（> ABNORMAL_SPEED，基站跳跃假高速）置空，不删行
-- 切段：用户或位置变化即开始新段 seg_id（为阶段2 聚类 / 阶段3 业务判定做准备）
-- 速度粗筛出行点：speed > SPEED_THRESHOLD 记为 is_travel（课时30："先用速度粗筛出行点"）
+- 速度粗筛出行点：speed > SPEED_THRESHOLD 记为 is_travel
+- 只保存出行点（is_travel=True）为中间结果，供阶段2 聚类使用
 
 输入：result/cleaned_data.csv（模块1 输出，固定 6 列：imsi,time,lac_id,cell_id,lon,lat）
-输出：data/processed/trajectory_points.csv（轨迹点表，字段见 TRAJECTORY_COLS）
+输出：data/processed/stage1_dt.csv（出行点表：imsi,time,lac_id,cell_id,lon,lat,speed，阶段2 的输入）
 """
 import sys
 from pathlib import Path
@@ -21,24 +21,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from project_code.config import (  # noqa: E402
     ABNORMAL_SPEED,
-    PROCESSED_FILES,
     RESULT_DIR,
     RESULT_FILES,
     SPEED_THRESHOLD,
 )
 from project_code.utils import Harversine, parse_time, save_processed,_read_csv_any_encoding # noqa: E402
 
-# 轨迹点表字段契约（阶段2 只认这张表）
-TRAJECTORY_COLS = [
-    'imsi', 'time', 'lac_id', 'cell_id', 'lon', 'lat',
-    'time_diff', 'dist_km', 'speed', 'seg_id', 'is_travel',
-]
-
-
 def main():
     """
-    第一阶段：根据第一模块清洗过后的数据，进行粗筛，先过滤掉低频率点（52-57），然后按用户分组，求出每一个用户每一条记录的速度（59-73）
-    将速度明显是出行的点打上标记，输出给阶段2（74-80）
+    阶段一读入数据清洗模块输出的标准表cleaned_data.csv（imsi、time、lac_id、cell_id、lon、lat六列，共17362条记录）。首先按imsi，lon，lat
+    统计每个位置的出现次数，过滤同一用户同一位置出现次数少于4次的低频漂移点；再按用户分组、按时间排序，用shift计算相邻记录的时间差
+    time_diff（秒），用Haversine公式计算相邻点的球面距离dist_km（公里），速度speed＝dist_km/time_diff×3600（km/h）；对速度超过200km/h
+    的基站跳跃假高速置空而不删行；最后速度大于8km/h的点标记is_travel=True，作为疑似出行点输出到data/processed/stage1_dt.csv。
 
     """
     print('[模块2-阶段1] 出行驻留识别-预处理：开始')

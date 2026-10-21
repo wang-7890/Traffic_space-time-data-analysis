@@ -1,4 +1,4 @@
-"""模块3：出行目的识别（PPT 1.2.3 数据流第 3 环）。
+"""模块3：驻留目的识别
 
 任务：判定每次驻留的目的 —— 居住 / 购物 / 旅游 等。
 输入：result/stage3_label.csv（模块2 的标签结果）
@@ -44,7 +44,11 @@ def judge_purpose_by_time(start_hour, end_hour, duration_hours):
 
 
 def main():
-    """出行目的识别主流程：驻留段识别 → 时间规则粗判 → POI 匹配精判 → 融合输出。"""
+    """
+        驻留目的识别主流程：驻留段识别 → 时间规则粗判 → POI 匹配精判 → 融合输出。
+        先读取阶段三的结果，对imsi和time进行排序，对用户的每条记录进行切片，只保留驻留的点，然后在根据停留时间进行粗判，最后读取POI数据，清洗后根据
+        距离精判，输出结果表
+    """
     print('[模块3] 出行目的识别')
     # 1.读取阶段3输出结果
     df_stage3 =_read_csv_any_encoding(
@@ -64,7 +68,7 @@ def main():
     df_stage3["seg_change"] = df_stage3["user_change"] | df_stage3["stay_change"]
     # 根据imsi分组，每组seg_id从1开始，遇到seg_change为True则+1
     df_stage3["seg_id"] = df_stage3.groupby("imsi")["seg_change"].cumsum()
-    stay_df = df_stage3[df_stage3["is_stay"]].copy() #只要驻留点
+    stay_df = df_stage3[df_stage3["is_stay"]].copy() #只要驻留点，判断驻留的目的
     #对imsi和seg_id分组聚合，找到每一个片段的起始与终止时间，并计算出这一个驻留片段有多少条记录，计算中心经纬度
     segments = stay_df.groupby(["imsi", "seg_id"]).agg(
         start_time=("time", "min"),

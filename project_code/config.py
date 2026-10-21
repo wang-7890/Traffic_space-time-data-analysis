@@ -39,8 +39,7 @@ RESULT_FILES = {
 
 # 中间数据文件名（data/processed/ 下，模块2 各阶段接力用）
 PROCESSED_FILES = {
-    'trajectory': 'trajectory_points.csv',# 模块2 阶段1 轨迹点表
-    'stage2_cluster':'stage2_cluster.csv',
+    'stage2_cluster':'stage2_cluster.csv',# 模块2 阶段2 聚类表
 }
 
 # ---------- 数据清洗参数（对应 Day4 课时 23~30 讲义） ----------

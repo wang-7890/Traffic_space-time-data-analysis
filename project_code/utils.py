@@ -5,7 +5,6 @@
 - 存结果：CSV 统一写 result/，图片统一写 result/figures/
 - 绘图：解决 matplotlib 默认不显示中文的问题
 
-后续课时还会往这里加算法工具（haversine 距离等）。
 """
 from pathlib import Path
 import numpy as np
@@ -18,10 +17,12 @@ from project_code.config import FIGURES_DIR, PROCESSED_DIR, RAW_DIR, RESULT_DIR
 
 
 def _read_csv_any_encoding(path: Path, **kwargs) -> pd.DataFrame:
-    """先按 UTF-8 读取，失败再按 GBK 读取。
+    """
+    先按 UTF-8 读取，失败再按 GBK 读取。
 
-    GBK 是 Windows 下中文 CSV 的常见编码（出行目的/出行方式静态数据就是），
-    不能写死一种编码。
+    :param path: 文件路径
+    :param kwargs: 读取文件的参数
+    :return: 一张DataFrame
     """
     try:
         return pd.read_csv(path, encoding='utf-8', **kwargs)
@@ -30,14 +31,14 @@ def _read_csv_any_encoding(path: Path, **kwargs) -> pd.DataFrame:
 
 
 def load_csv(filename: str, **kwargs) -> pd.DataFrame:
-    """读取 data/raw/ 下的 CSV 文件，用于加载原数据
-
-    参数:
-        filename: 文件名，建议用 config.RAW_FILES 里的常量，如 RAW_FILES['signal']
-        **kwargs: 原样传给 pd.read_csv。data/raw/ 下的 CSV 都没有表头行，
-                  请加 header=None，并参考数据说明自行定义列名。
+    """
+    读取 data/raw/ 下的 CSV 文件，用于加载原数据
 
     文件缺失时会抛出带解决提示的 FileNotFoundError。
+    :param filename:文件名，建议用 config.RAW_FILES 里的常量，如 RAW_FILES['signal']
+    :param kwargs:原样传给 pd.read_csv。data/raw/ 下的 CSV 都没有表头行，
+                  请加 header=None，并参考数据说明自行定义列名。
+    :return:
     """
     path = RAW_DIR / filename
     if not path.exists():
@@ -49,10 +50,12 @@ def load_csv(filename: str, **kwargs) -> pd.DataFrame:
 
 
 def save_result(df: pd.DataFrame, name: str) -> Path:
-    """把结果 DataFrame 写到 result/ 目录，自动建目录。
+    """
+    把结果 DataFrame 写到 result/ 目录，自动建目录。
 
-    参数:
-        name: 文件名，建议用 config.RESULT_FILES 里的常量
+    :param df: 要保存的DataFrame
+    :param name: 文件名，建议用 config.RESULT_FILES 里的常量
+    :return: 保存路径
     """
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     path = RESULT_DIR / name
@@ -102,6 +105,17 @@ def parse_time(s):
 
 
 def Harversine(lon1,lat1,lon2,lat2,unit="km"):
+    """
+    Harversine 根据经纬度求距离
+
+    :param lon1: 之前的经度
+    :param lat1: 之前的纬度
+    :param lon2: 最新的经度
+    :param lat2: 最新的纬度
+    :param unit: 单位
+    :return: 一个数值，表示距离
+    """
+
     R=6371.0
     lon1,lat1,lon2,lat2 =map(np.radians,[lon1,lat1,lon2,lat2])
     dlat = lat2-lat1
@@ -114,7 +128,7 @@ def Harversine(lon1,lat1,lon2,lat2,unit="km"):
 
 # 初始化日志配置
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, #DEBUG(10) < INFO(20) < WARNING(30) < ERROR(40) < CRITICAL(50)
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
