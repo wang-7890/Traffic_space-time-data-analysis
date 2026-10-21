@@ -10,7 +10,8 @@ import numpy as np
 # 滑窗大小（分钟）：统计"过去 10 分钟"的人次
 def heatmap_analysis():
     """
-    把一天25万条实时定位流，按距离哪个商圈最近打上标签，丢弃无效行，只要20181003的记录
+    我们筛选20181003的定位轨迹，用Harversine公式把每个定位点匹配到1000米范围内最近的商圈；再通过10分钟滑动窗口，统计个商圈随时间变化的累计人流量
+    生成舒徐热力数据表，叫欸可视化模块绘制热力图
     """
     WINDOW_MINUTES = 10
     TARGET_DATE = 20181003
@@ -41,12 +42,13 @@ def heatmap_analysis():
     print(before ,"->",len(biz))
 
     #分批广播距离匹配
+    #为了做广播矩阵批量计算距离，用 NumPy 向量化运算替代 Python 循环，极大提速
     n=len(stream)
     p_lon = stream['lon'].to_numpy()
     p_lat = stream['lat'].to_numpy()
     biz_lon = biz['lon'].to_numpy()
     biz_lat = biz['lat'].to_numpy()
-    matched = np.full(n , -1, dtype=int)
+    matched = np.full(n , -1, dtype=int)#匹配数组，能与某个商圈匹配到就为1，初始为-1
 
     for s in range(0, n, BATCH_SIZE):
         e = min(s + BATCH_SIZE, n)

@@ -30,8 +30,8 @@ from project_code.utils import (  # noqa: E402
 )
 
 # 阶段间中间结果文件名（文件名写死，与阶段1 的 stage1_dt.csv 同款做法）
-STAGE1_INPUT_FILE = 'stage1_dt.csv'        # 阶段1 输出（出行点）
-STAGE2_OUT_FILE = 'stage2_cluster.csv'     # 阶段2 输出（课时38：出行点 + cluster + is_single_cluster）
+STAGE1_INPUT_FILE = 'stage1_dt.csv'  # 阶段1 输出（出行点）
+STAGE2_OUT_FILE = 'stage2_cluster.csv'  # 阶段2 输出（课时38：出行点 + cluster + is_single_cluster）
 
 # 课时37：候选 k 的范围
 K_MIN = 2
@@ -72,8 +72,8 @@ def kmeans(X, k, max_iter=100, tol=1e-6):
     返回 (labels, centers)：labels 为每点簇号，centers 为簇心 (k,2)。
     初始化用 np.random.choice 全局随机源，main() 里先 np.random.seed(42) 固定，结果可复现。
     """
-    n = len(X)                                # 一共有多少个点
-    if k >= n:                                # 簇数不少于点数：不用聚了
+    n = len(X)  # 一共有多少个点
+    if k >= n:  # 簇数不少于点数：不用聚了
         return np.arange(n, dtype=int), X.copy()  # 每个点自成一簇：标签 0,1,2...，簇心就是点本身
     # 1) 随机选 k 个样本作为初始中心（不重复抽样）
     centers = X[np.random.choice(n, k, replace=False)].copy()  # 随机取 k 个点当初始簇心,返回一个k*2的数组
@@ -82,26 +82,26 @@ def kmeans(X, k, max_iter=100, tol=1e-6):
     #        X[下标] 取出这 k 个点；得到 (k,2) 的初始簇心表
     labels = np.zeros(n, dtype=int)  # 一维数组，下标=样本号，值=该样本所在的簇，先全记 0
 
-    for _ in range(max_iter):                 # 最多迭代 max_iter 轮，防止不收敛时死循环
+    for _ in range(max_iter):  # 最多迭代 max_iter 轮，防止不收敛时死循环
         # 2) 分配步：每个点到所有簇心的距离，取最近的簇
         dist = np.sqrt(((X[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2))
         #      X 变 (n,1,2)、centers 变 (1,k,2)，广播相减得 (n,k,2) 再按坐标求和开根号
         #      X n行1列，centers 1行k列，每个单元格包含一个位置坐标（x，y）
         #      结果 dist 是 (n,k) 数组：dist[i, c] = 点 i 到簇心 c 的距离
-        new_labels = dist.argmin(axis=1)      # 每行取最小值的列号 -> 点 i 最近的簇编号
+        new_labels = dist.argmin(axis=1)  # 每行取最小值的列号 -> 点 i 最近的簇编号
 
         # 3) 更新步：每簇成员均值为新中心；空簇保留旧中心（避免 NaN）
-        new_centers = centers.copy()          # 先复制旧簇心，下面逐簇覆盖
-        for c in range(k):                    # 遍历每一个簇
-            mask = new_labels == c            # 布尔数组：哪些样本属于簇 c（匹配相同簇的样本）
-            if mask.any():                    # 该簇至少有一个成员才更新
+        new_centers = centers.copy()  # 先复制旧簇心，下面逐簇覆盖
+        for c in range(k):  # 遍历每一个簇
+            mask = new_labels == c  # 布尔数组：哪些样本属于簇 c（匹配相同簇的样本）
+            if mask.any():  # 该簇至少有一个成员才更新
                 new_centers[c] = X[mask].mean(axis=0)  # 求该簇所有样本的均值，作为新簇心
                 # 空簇（mask 全 False）不更新，沿用旧簇心——否则对空数组求均值会产生 NaN
 
         # 4) 收敛判断：所有簇心一共移动了多少，小于 tol 认为收敛
         shift = np.sqrt(((new_centers - centers) ** 2).sum())  # 新旧簇心差值的总长度
-        labels, centers = new_labels, new_centers              # 更新：用新结果替换旧结果
-        if shift < tol:                       # 簇心几乎不动了，提前结束迭代
+        labels, centers = new_labels, new_centers  # 更新：用新结果替换旧结果
+        if shift < tol:  # 簇心几乎不动了，提前结束迭代
             break
     return labels, centers
 
@@ -114,31 +114,32 @@ def silhouette_score(D, labels):
     - b(i)：点 i 到"最近的另一个簇"所有点的平均距离（越大越分开）；
     - s(i) = (b - a) / max(a, b)。
     """
-    uniq = np.unique(labels)                  # 找到所有的簇号，比如 [0, 1, 2]
-    if len(uniq) <= 1:                        # 只有一个簇（或没有）没法算"簇间"，直接返回 0
+    uniq = np.unique(labels)  # 找到所有的簇号，比如 [0, 1, 2]
+    if len(uniq) <= 1:  # 只有一个簇（或没有）没法算"簇间"，直接返回 0
         return 0.0
-    n = len(labels)                           # 点的总数
-    vals = np.zeros(n)                        # 创建 vals 数组，存每个点的轮廓系数（越大越好）
+    n = len(labels)  # 点的总数
+    vals = np.zeros(n)  # 创建 vals 数组，存每个点的轮廓系数（越大越好）
     # 遍历每一个点，计算它的 s(i)
     for i in range(n):
-        same = (labels == labels[i]); same[i] = False
+        same = (labels == labels[i]);
+        same[i] = False
         #       布尔数组：哪些点和 i 同簇；再把 i 自己排除掉——
         #       自己到自己的距离是 0，混进去会把平均值拉低
         a = D[i, same].mean() if same.any() else 0.0  # 单点簇没有"其他同簇点"，a 按 0 处理
         #       a = 点 i 到"同簇其他点"的平均距离（越小说明簇内越紧）
-        b = np.inf                            # b = 点 i 到"最近的另一个簇"的平均距离，先设无穷大
-        for c in uniq:                        # 遍历所有簇，找最近的"别的"簇
-            if c == labels[i]:                # 跳过自己所在的簇
+        b = np.inf  # b = 点 i 到"最近的另一个簇"的平均距离，先设无穷大
+        for c in uniq:  # 遍历所有簇，找最近的"别的"簇
+            if c == labels[i]:  # 跳过自己所在的簇
                 continue
-            other = (labels == c)             # 布尔数组：簇 c 的成员
-            if other.any():                   # 簇 c 有成员才参与比较
+            other = (labels == c)  # 布尔数组：簇 c 的成员
+            if other.any():  # 簇 c 有成员才参与比较
                 b = min(b, D[i, other].mean())  # 与各"别的簇"平均距离取最小 -> b
-        denom = max(a, b)                     # 公式里的分母 max(a, b)
+        denom = max(a, b)  # 公式里的分母 max(a, b)
         vals[i] = (b - a) / denom if denom > 0 else 0.0
         #   ^^^^^^^^^^^^^^^^ 公式计算轮廓指数 s(i) = (b - a) / max(a, b)
         #   b 远大于 a -> 接近 1（好）；a、b 差不多 -> 接近 0；a 大于 b -> 负数（差）
         #   denom == 0（该点与所有点完全重合）时公式无意义，记 0 兜底
-    return float(vals.mean())                 # 所有点取平均 = 这次聚类的轮廓系数
+    return float(vals.mean())  # 所有点取平均 = 这次聚类的轮廓系数
 
 
 def dunn_index(D, labels):
@@ -147,27 +148,27 @@ def dunn_index(D, labels):
     分子越大（簇间隔得开）、分母越小（簇内越紧），值越大越好。
     np.ix_ 用于取"行集合×列集合"的子矩阵。
     """
-    uniq = np.unique(labels)                  # 所有簇号
+    uniq = np.unique(labels)  # 所有簇号
     # ---------- 分母：各簇的最大直径 ----------
-    max_intra = 0.0                           # 所有簇直径里的最大值，先记 0
+    max_intra = 0.0  # 所有簇直径里的最大值，先记 0
     for c in uniq:  # 各簇最大直径
-        idx = np.where(labels == c)[0]        # 簇 c 的成员下标
-        if len(idx) > 1:                      # 单点簇直径是 0，跳过不算
+        idx = np.where(labels == c)[0]  # 簇 c 的成员下标
+        if len(idx) > 1:  # 单点簇直径是 0，跳过不算
             max_intra = max(max_intra, D[np.ix_(idx, idx)].max())
             #   D[np.ix_(idx, idx)] 取"簇 c 成员 × 簇 c 成员"的子矩阵，
             #   最大值就是簇内最远两点之间的距离（直径）
     # ---------- 分子：不同簇之间的最小距离 ----------
-    min_inter = np.inf                        # 所有簇对里最近的距离，先记无穷大
+    min_inter = np.inf  # 所有簇对里最近的距离，先记无穷大
     for i in range(len(uniq)):
-        for j in range(i + 1, len(uniq)):     # 两两配对，且 (i, j) 不重复组合
+        for j in range(i + 1, len(uniq)):  # 两两配对，且 (i, j) 不重复组合
             a = np.where(labels == uniq[i])[0]  # 簇 i 的成员下标
             b = np.where(labels == uniq[j])[0]  # 簇 j 的成员下标
             min_inter = min(min_inter, D[np.ix_(a, b)].min())
             #   D[np.ix_(a, b)] 是"簇 i 成员 × 簇 j 成员"的子矩阵，
             #   最小值就是这两个簇之间最近的两点距离
-    if max_intra <= 0:                        # 所有簇直径都是 0（全是重合点），比值无意义
+    if max_intra <= 0:  # 所有簇直径都是 0（全是重合点），比值无意义
         return 0.0
-    return float(min_inter / max_intra)       # 间隔大、直径小 -> 邓恩指数大 -> 聚类好
+    return float(min_inter / max_intra)  # 间隔大、直径小 -> 邓恩指数大 -> 聚类好
 
 
 def choose_best_k(X):
@@ -177,24 +178,24 @@ def choose_best_k(X):
     距离矩阵 D 只算一次，各 k 复用，省时间；n < K_MIN 的点太少，直接单簇。
     返回 (best_labels, best_k)。
     """
-    n = len(X)                                # 这个用户的点数
-    if n < K_MIN:                             # 点太少（不足 K_MIN=2 个），不值得聚
-        return np.zeros(n, dtype=int), 1      # 全部归到 0 号簇，k=1
-    D = pairwise_euclidean(X)                 # 距离矩阵只算一次，后面每个候选 k 都复用
-    k_max = min(K_MAX, n)                     # 候选 k 的上限：最多 10，也不超过点数
+    n = len(X)  # 这个用户的点数
+    if n < K_MIN:  # 点太少（不足 K_MIN=2 个），不值得聚
+        return np.zeros(n, dtype=int), 1  # 全部归到 0 号簇，k=1
+    D = pairwise_euclidean(X)  # 距离矩阵只算一次，后面每个候选 k 都复用
+    k_max = min(K_MAX, n)  # 候选 k 的上限：最多 10，也不超过点数
     best_score, best_k, best_labels = -np.inf, 1, np.zeros(n, dtype=int)
     #   当前最好分数 / 对应的 k / 对应的标签；分数从 -inf 起，
     #   保证任何一个"合法"候选都能超过它，选出真正的最大值
-    for k in range(K_MIN, k_max + 1):         # k = 2, 3, ..., k_max 逐个试
-        labels, _ = kmeans(X, k)              # 用这个 k 跑一次 k-means（只关心标签）
-        if len(np.unique(labels)) < 2:        # 实际只聚出 1 个簇（退化）
-            score = -np.inf                   # 给最低分，等于放弃这个 k
+    for k in range(K_MIN, k_max + 1):  # k = 2, 3, ..., k_max 逐个试
+        labels, _ = kmeans(X, k)  # 用这个 k 跑一次 k-means（只关心标签）
+        if len(np.unique(labels)) < 2:  # 实际只聚出 1 个簇（退化）
+            score = -np.inf  # 给最低分，等于放弃这个 k
         else:
             score = silhouette_score(D, labels) + 0.1 * dunn_index(D, labels)
             #       轮廓系数为主（范围 -1~1），邓恩指数量级偏大、乘 0.1 当小权重辅助
-        if score > best_score:                # 严格大于才换 -> 分数打平时保留更小的 k
+        if score > best_score:  # 严格大于才换 -> 分数打平时保留更小的 k
             best_score, best_k, best_labels = score, k, labels
-    return best_labels, best_k                # 返回最优 k 对应的标签和 k
+    return best_labels, best_k  # 返回最优 k 对应的标签和 k
 
 
 def main(seed=42):
@@ -227,19 +228,19 @@ def main(seed=42):
     """
     print('[模块2-阶段2] 出行驻留识别-聚类：开始')  # 运行提示
 
-    path = PROCESSED_DIR / STAGE1_INPUT_FILE   # 拼接输入文件完整路径：data/processed/stage1_dt.csv
+    path = PROCESSED_DIR / STAGE1_INPUT_FILE  # 拼接输入文件完整路径：data/processed/stage1_dt.csv
     if not path.exists():
         print(f'[模块2-阶段2] 未找到阶段1 中间结果: {path}')
         print('    请先运行: python project_code/tr_stage1.py')
-        raise FileNotFoundError(               # 给出可操作的提示后直接报错退出（fail-fast），
+        raise FileNotFoundError(  # 给出可操作的提示后直接报错退出（fail-fast），
             f'未找到阶段1 中间结果: {path}，请先运行 python project_code/tr_stage1.py'
-        )                                      # 不让流水线在后面的环节才莫名其妙地挂掉
+        )  # 不让流水线在后面的环节才莫名其妙地挂掉
 
     # imsi 按字符串读，防止丢前导零/精度（阶段1 同款约定）
     df = _read_csv_any_encoding(path, dtype={'imsi': str})
     #   读阶段1 输出；dtype 指定 imsi 为字符串（15 位手机号按数字读会丢精度），
-    if df.empty:                               # 文件存在但是空表（异常情况）
-        raise FileNotFoundError(               # 提示重新跑阶段1
+    if df.empty:  # 文件存在但是空表（异常情况）
+        raise FileNotFoundError(  # 提示重新跑阶段1
             f'阶段1 中间结果为空: {path}，请重新运行 python project_code/tr_stage1.py'
         )
 
@@ -248,33 +249,33 @@ def main(seed=42):
 
     # 逐用户聚类：聚类只在同一个用户的点之间进行（课时38），
     # 所以 groupby("imsi") 后逐人调用选 K + K-Means
-    out_parts, chosen_ks = [], []              # 收集每个用户的结果片段 / 每个用户选出的 k
+    out_parts, chosen_ks = [], []  # 收集每个用户的结果片段 / 每个用户选出的 k
     for imsi, g in df.groupby('imsi', sort=False):  # 按 imsi 分组，逐个用户处理
         #                sort=False 保持文件里的原始顺序，输出字节级可复现
         X = g[['lon', 'lat']].to_numpy(dtype=float)  # 取出该用户的坐标，转成 (n,2) 数组
-        labels, best_k = choose_best_k(X)      # 自动选 k 并聚类，返回每点簇号和选中的 k
-        chosen_ks.append(best_k)              # 记下这个用户的 k，最后统计最优 K 分布用
+        labels, best_k = choose_best_k(X)  # 自动选 k 并聚类，返回每点簇号和选中的 k
+        chosen_ks.append(best_k)  # 记下这个用户的 k，最后统计最优 K 分布用
 
-        g = g.copy()                           # 复制一份再改，避免改到分组产生的视图
-        g['cluster'] = labels                  # 簇编号（每用户内从 0 开始，配合 imsi 使用不会混淆）
+        g = g.copy()  # 复制一份再改，避免改到分组产生的视图
+        g['cluster'] = labels  # 簇编号（每用户内从 0 开始，配合 imsi 使用不会混淆）
         # 单点簇标记：簇里只有 1 个点记 1（阶段3 直接判出行）
         size_map = pd.Series(labels).value_counts()  # 数每个簇有几个点：簇号 -> 点数
-        g['is_single_cluster'] = g['cluster'].map(   # 每个点去查"自己所在的簇有几个点"
+        g['is_single_cluster'] = g['cluster'].map(  # 每个点去查"自己所在的簇有几个点"
             lambda c: 1 if size_map.get(c, 0) == 1 else 0)  # 只有自己 1 个点 -> 记 1
-        out_parts.append(g)                    # 收起来，最后统一拼表
+        out_parts.append(g)  # 收起来，最后统一拼表
 
     result = pd.concat(out_parts, ignore_index=True)  # 所有用户的结果拼回一张大表（行号重置）
     result['cluster'] = result['cluster'].astype(int)  # 簇号统一转整数（去掉浮点形式）
     out_path = save_processed(result, STAGE2_OUT_FILE)  # 保存到 data/processed/stage2_cluster.csv
 
     n_clusters = int(result.groupby(['imsi', 'cluster']).ngroups)  # 实际形成的簇数（空簇不算）
-    n_single = int((result['is_single_cluster'] == 1).sum())       # 单点簇的个数
-    ks = np.array(chosen_ks)                   # 所有用户的 k 拼成数组，方便统计最小/最大/平均
+    n_single = int((result['is_single_cluster'] == 1).sum())  # 单点簇的个数
+    ks = np.array(chosen_ks)  # 所有用户的 k 拼成数组，方便统计最小/最大/平均
     print(f'读入阶段1出行点: {len(result)} 行, {len(chosen_ks)} 个用户')
     print(f'共形成 {n_clusters} 个簇（其中单点簇 {n_single} 个），')
     print(f'最优K分布: 最小 {ks.min()} / 最大 {ks.max()} / 平均 {ks.mean():.1f}')
     print(f'保存: {out_path}')
-    return {                                   # 把关键统计返回给调用方（如 main.py），方便串联
+    return {  # 把关键统计返回给调用方（如 main.py），方便串联
         'input_rows': len(result),
         'users': len(chosen_ks),
         'n_clusters': n_clusters,

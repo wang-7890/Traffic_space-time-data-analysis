@@ -25,7 +25,8 @@ from project_code.config import (  # noqa: E402
     RESULT_FILES,
     SPEED_THRESHOLD,
 )
-from project_code.utils import Harversine, parse_time, save_processed,_read_csv_any_encoding # noqa: E402
+from project_code.utils import Harversine, parse_time, save_processed, _read_csv_any_encoding  # noqa: E402
+
 
 def main():
     """
@@ -42,20 +43,20 @@ def main():
         RESULT_DIR / RESULT_FILES['cleaned'],
         dtype={'imsi': str, 'lac_id': str, 'cell_id': str},
     )
-    #去掉低频率点
+    # 去掉低频率点
     df['time_dt'] = parse_time(df['time'])
-    loc_cnt = df.groupby(["imsi","lon","lat"]).size().reset_index(name='cnt')
-    low_freq = loc_cnt[loc_cnt['cnt']<4][['imsi','lat','lon']]
+    loc_cnt = df.groupby(["imsi", "lon", "lat"]).size().reset_index(name='cnt')
+    low_freq = loc_cnt[loc_cnt['cnt'] < 4][['imsi', 'lat', 'lon']]
     low_freq["_is_low"] = 1
-    df = df.merge(low_freq,on=["lat","imsi","lon"],how="left")
+    df = df.merge(low_freq, on=["lat", "imsi", "lon"], how="left")
     df = df[df["_is_low"].isna()].drop(columns="_is_low").reset_index(drop=True)
 
     prev_imsi = df["imsi"].shift(1)
     prev_lon = df["lon"].shift(1)
     prev_lat = df["lat"].shift(1)
 
-    user_change = (df["imsi"]!=prev_imsi)
-    loc_change = (df["lon"]!=prev_lon)|(df["lat"]!=prev_lat)
+    user_change = (df["imsi"] != prev_imsi)
+    loc_change = (df["lon"] != prev_lon) | (df["lat"] != prev_lat)
     seg_change = (user_change | loc_change).astype("int64")
     df["seg_id"] = seg_change.groupby(df['imsi']).cumsum()
 
@@ -63,15 +64,17 @@ def main():
     df["prev_lon"] = df.groupby('imsi')["lon"].shift(1)
     df["prev_lat"] = df.groupby("imsi")["lat"].shift(1)
 
-    dist_km = Harversine(df["prev_lon"],df["prev_lat"],df["lon"],df["lat"],unit='km')
-    df["speed"] = (dist_km*3600.0/df["time_diff"]).round(2)
-    df.loc[(df["speed"]<0) | (df["speed"]>ABNORMAL_SPEED),"speed"] = np.nan
-    df['is_travel'] = df["speed"]>SPEED_THRESHOLD
+    dist_km = Harversine(df["prev_lon"], df["prev_lat"], df["lon"], df["lat"], unit='km')
+    df["speed"] = (dist_km * 3600.0 / df["time_diff"]).round(2)
+    df.loc[(df["speed"] < 0) | (df["speed"] > ABNORMAL_SPEED), "speed"] = np.nan
+    df['is_travel'] = df["speed"] > SPEED_THRESHOLD
 
     travel = df[df["is_travel"]].copy()
-    travel = travel[["imsi","time","lac_id","cell_id","lon","lat","speed"]]
-    #保留出行点
-    save_processed(travel,"stage1_dt.csv")
+    travel = travel[["imsi", "time", "lac_id", "cell_id", "lon", "lat", "speed"]]
+    # 保留出行点
+    save_processed(travel, "stage1_dt.csv")
     return travel
+
+
 if __name__ == '__main__':
     main()

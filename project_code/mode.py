@@ -63,6 +63,10 @@ def final_mode_judge(subway_cnt, bus_cnt, avg_speed):
 
 
 def main():
+    """
+    先拆分每个人的独立出行片段，算出每段出行的平均速度；再看这段轨迹里面有多少个点靠近地铁站 / 公交站；优先用站点匹配判定，速度作为兜底，
+    最终识别出行方式
+    """
     print('[模块4] 出行方式识别')
     df_stage3 = _read_csv_any_encoding(RESULT_DIR/RESULT_FILES["stage3"])
     df_stage3 = df_stage3.sort_values(["imsi", "time"]).reset_index(drop=True)
